@@ -1,26 +1,105 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  color-scheme: light;
+  --bg: #ede6d8;
+  --surface: #f7f2e7;
+  --surface-raised: #fffaf0;
+  --ink: #2e2620;
+  --ink-muted: #6b5f52;
+  --accent: #5c6e51;
+  --accent-hover: #4d6044;
+  --accent-soft: #dce3d2;
+  --accent-warm: #c1793b;
+  --good: #8fa772;
+  --caution: #c1793b;
+  --danger: #a8422f;
+  --border: rgba(77, 60, 47, 0.17);
+  --border-strong: rgba(77, 60, 47, 0.28);
+  --control: rgba(255, 250, 240, 0.7);
+  --board-light: #f2e6d3;
+  --board-dark: #6b4a38;
+  --eval-dark: #2e2620;
+  --eval-light: #f7f2e7;
+  --shadow-card: 0 14px 38px rgba(46, 38, 32, 0.08);
+  --shadow-board: 0 18px 45px rgba(46, 38, 32, 0.18), 0 3px 10px rgba(46, 38, 32, 0.12);
+  --background: var(--bg);
+  --foreground: var(--ink);
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --color-background: var(--bg);
+  --color-foreground: var(--ink);
+  --color-toby-bg: var(--bg);
+  --color-toby-surface: var(--surface);
+  --color-toby-ink: var(--ink);
+  --color-toby-muted: var(--ink-muted);
+  --color-toby-accent: var(--accent);
+  --color-toby-warm: var(--accent-warm);
+  --color-toby-good: var(--good);
+  --color-toby-danger: var(--danger);
+  --font-sans: var(--font-inter);
+  --font-serif: var(--font-lora);
+  --font-mono: var(--font-jetbrains-mono);
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+    color-scheme: dark;
+    --bg: #211b16;
+    --surface: #2b241d;
+    --surface-raised: #352c23;
+    --ink: #f3eadb;
+    --ink-muted: #b9aa98;
+    --accent: #788d6b;
+    --accent-hover: #8ca17d;
+    --accent-soft: #3b4934;
+    --accent-warm: #d28a49;
+    --good: #a0b985;
+    --caution: #d28a49;
+    --danger: #ca6751;
+    --border: rgba(243, 234, 219, 0.13);
+    --border-strong: rgba(243, 234, 219, 0.23);
+    --control: rgba(53, 44, 35, 0.82);
+    --eval-dark: #17120e;
+    --eval-light: #e8dcc9;
+    --shadow-card: 0 14px 38px rgba(10, 7, 5, 0.24);
+    --shadow-board: 0 18px 45px rgba(10, 7, 5, 0.38), 0 3px 10px rgba(10, 7, 5, 0.3);
   }
 }
 
+* {
+  box-sizing: border-box;
+  scrollbar-color: color-mix(in srgb, var(--ink-muted) 48%, transparent) transparent;
+  scrollbar-width: thin;
+}
+
+html { background: var(--bg); }
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  margin: 0;
+  background:
+    radial-gradient(circle at 50% -20%, color-mix(in srgb, var(--surface) 72%, transparent), transparent 42rem),
+    var(--bg);
+  color: var(--ink);
+  font-family: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+}
+
+::selection { background: var(--accent-soft); color: var(--ink); }
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-thumb { background: color-mix(in srgb, var(--ink-muted) 42%, transparent); border: 3px solid transparent; border-radius: 999px; background-clip: padding-box; }
+
+button, a, input, textarea { -webkit-tap-highlight-color: transparent; }
+button:not(:disabled), [role="button"]:not([aria-disabled="true"]) { cursor: pointer; }
+:focus-visible { outline: 3px solid color-mix(in srgb, var(--accent) 75%, transparent); outline-offset: 3px; }
+
+.font-display { font-family: var(--font-lora), Georgia, serif; }
+.font-notation { font-family: var(--font-jetbrains-mono), ui-monospace, monospace; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }

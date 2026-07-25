@@ -10,6 +10,9 @@
 !.yarn/releases
 !.yarn/versions
 
+# stockfish
+/public/stockfish/
+
 # testing
 /coverage
 
@@ -32,6 +35,7 @@ yarn-error.log*
 
 # env files (can opt-in for committing if needed)
 .env*
+!.env.local.example
 
 # vercel
 .vercel
