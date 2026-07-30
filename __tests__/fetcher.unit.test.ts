@@ -152,6 +152,23 @@ describe("fetchRecentGames - Chess.com", () => {
       "timed out"
     );
   });
+
+  it("preserves caller-initiated cancellation as an AbortError", async () => {
+    mockFetch((_url: string, options: unknown) =>
+      new Promise((_resolve, reject) => {
+        const signal = (options as RequestInit).signal;
+        signal?.addEventListener("abort", () => {
+          reject(new DOMException("The operation was aborted.", "AbortError"));
+        });
+      })
+    );
+
+    const controller = new AbortController();
+    const request = fetchRecentGames("chesscom", "player1", controller.signal);
+    controller.abort();
+
+    await expect(request).rejects.toMatchObject({ name: "AbortError" });
+  });
 });
 
 // =============================================================================

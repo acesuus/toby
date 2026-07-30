@@ -194,7 +194,7 @@ export interface GameReviewState {
   /** Progress from 0 to 1 */
   analysisProgress: number;
   evaluations: EngineEvaluation[];
-  /** User-configurable depth, default 18, range [10, 25] */
+  /** User-configurable maximum depth, default 18, range [10, 25] */
   analysisDepth: number;
 
   // Classification phase

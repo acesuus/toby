@@ -1,9 +1,10 @@
 "use client";
 
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useGameReview } from "@/lib/game-review-context";
 import { MAX_PGN_LENGTH, parsePGN } from "@/lib/pgn-parser";
 import { fetchRecentGames, validateUsername } from "@/lib/fetcher";
+import { usePlatformUsernames } from "@/lib/use-platform-usernames";
 import type { Platform } from "@/lib/types";
 
 type ImportTab = "pgn" | "chesscom" | "lichess";
@@ -14,6 +15,7 @@ const secondaryButton = "rounded-xl border border-[var(--border-strong)] bg-[var
 
 export function ImportPanel() {
   const { state, dispatch } = useGameReview();
+  const { usernames } = usePlatformUsernames();
   const activeTab = (state.importMethod as ImportTab) ?? "pgn";
   const setActiveTab = useCallback((tab: ImportTab) => {
     dispatch({ type: "setImportMethod", payload: tab });
@@ -29,8 +31,8 @@ export function ImportPanel() {
       </div>
       <div className="p-4 sm:p-7">
         {activeTab === "pgn" && <PgnTab />}
-        {activeTab === "chesscom" && <PlatformTab platform="chesscom" />}
-        {activeTab === "lichess" && <PlatformTab platform="lichess" />}
+        {activeTab === "chesscom" && <PlatformTab platform="chesscom" defaultUsername={usernames.chess_com_username} />}
+        {activeTab === "lichess" && <PlatformTab platform="lichess" defaultUsername={usernames.lichess_username} />}
       </div>
     </div>
   );
@@ -112,14 +114,19 @@ function PgnTab() {
   );
 }
 
-interface PlatformTabProps { platform: Platform; }
-function PlatformTab({ platform }: PlatformTabProps) {
+interface PlatformTabProps { platform: Platform; defaultUsername?: string | null; }
+function PlatformTab({ platform, defaultUsername }: PlatformTabProps) {
   const { dispatch } = useGameReview();
-  const [username, setUsername] = useState("");
+  const [username, setUsername] = useState(defaultUsername ?? "");
   const [validationError, setValidationError] = useState<string | null>(null);
   const [fetchError, setFetchError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const requestAbortRef = useRef<AbortController | null>(null);
   const platformLabel = platform === "chesscom" ? "Chess.com" : "Lichess";
+
+  useEffect(() => {
+    return () => requestAbortRef.current?.abort();
+  }, []);
 
   const handleBlur = useCallback(() => {
     setValidationError(username.trim() ? validateUsername(platform, username) : null);
@@ -128,17 +135,35 @@ function PlatformTab({ platform }: PlatformTabProps) {
   const handleSubmit = useCallback(async () => {
     const issue = validateUsername(platform, username);
     if (issue) { setValidationError(issue); return; }
+
+    requestAbortRef.current?.abort();
+    const controller = new AbortController();
+    requestAbortRef.current = controller;
+
     setValidationError(null);
     setFetchError(null);
     setIsLoading(true);
     try {
-      const games = await fetchRecentGames(platform, username);
+      const games = await fetchRecentGames(platform, username, controller.signal);
+      if (controller.signal.aborted) return;
       dispatch({ type: "setGameList", payload: games });
       dispatch({ type: "setError", payload: null });
     } catch (err: unknown) {
+      if (controller.signal.aborted) return;
       setFetchError(err instanceof Error ? err.message : "Failed to fetch games");
-    } finally { setIsLoading(false); }
+    } finally {
+      if (requestAbortRef.current === controller) {
+        requestAbortRef.current = null;
+        setIsLoading(false);
+      }
+    }
   }, [platform, username, dispatch]);
+
+  const handleCancel = useCallback(() => {
+    requestAbortRef.current?.abort();
+    requestAbortRef.current = null;
+    setIsLoading(false);
+  }, []);
 
   const displayError = validationError || fetchError;
   const inputId = `${platform}-username`;
@@ -156,6 +181,11 @@ function PlatformTab({ platform }: PlatformTabProps) {
           <button type="button" onClick={handleSubmit} disabled={isLoading || username.trim().length === 0} className={`${primaryButton} whitespace-nowrap sm:min-w-36`}>
             {isLoading ? <span className="flex items-center justify-center gap-2"><LoadingSpinner />Finding games…</span> : "Find games"}
           </button>
+          {isLoading && (
+            <button type="button" onClick={handleCancel} className={`${secondaryButton} whitespace-nowrap`}>
+              Cancel
+            </button>
+          )}
         </div>
       </div>
       {displayError && (

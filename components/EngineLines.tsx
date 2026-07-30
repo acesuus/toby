@@ -6,16 +6,24 @@ import type { EngineLine, EvalScore } from "@/lib/types";
 
 export type EngineAnalysisStatus = "initializing" | "analyzing" | "ready" | "error";
 
+export interface PvMoveSelection {
+  fen: string;
+  uciMoves: string[];
+}
+
 interface EngineLinesProps {
   fen: string;
   lines: EngineLine[];
   status: EngineAnalysisStatus;
+  /** User-selected maximum depth. */
   depth: number;
+  /** Highest progressive depth currently displayed. */
+  reachedDepth?: number | null;
   multiThreaded: boolean;
   errorMessage?: string | null;
   onDepthChange: (depth: number) => void;
-  /** Called when the user clicks a move in a PV line; receives the FEN after that move */
-  onPvMoveClick?: (fen: string) => void;
+  /** Called with the clicked PV position and the UCI prefix leading to it. */
+  onPvMoveClick?: (selection: PvMoveSelection) => void;
 }
 
 export function getDepthValidationError(depth: number): string | null {
@@ -36,6 +44,7 @@ function formatEval(score: EvalScore): string {
 interface PvToken {
   label: string;
   fen: string;
+  uciMoves: string[];
 }
 
 function parsePvTokens(fen: string, uciMoves: string[], maxPlies = 10): PvToken[] {
@@ -57,7 +66,7 @@ function parsePvTokens(fen: string, uciMoves: string[], maxPlies = 10): PvToken[
     const label = whiteToMove
       ? `${moveNum}. ${san}`
       : i === 0 ? `${moveNum}... ${san}` : san;
-    tokens.push({ label, fen: chess.fen() });
+    tokens.push({ label, fen: chess.fen(), uciMoves: uciMoves.slice(0, i + 1) });
     if (!whiteToMove) moveNum++;
     whiteToMove = !whiteToMove;
   }
@@ -81,7 +90,7 @@ function SettingsIcon() {
   );
 }
 
-export function EngineLines({ fen, lines, status, depth, multiThreaded, errorMessage, onDepthChange, onPvMoveClick }: EngineLinesProps) {
+export function EngineLines({ fen, lines, status, depth, reachedDepth, multiThreaded, errorMessage, onDepthChange, onPvMoveClick }: EngineLinesProps) {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [draftDepth, setDraftDepth] = useState(String(depth));
   const [validationError, setValidationError] = useState<string | null>(null);
@@ -119,12 +128,14 @@ export function EngineLines({ fen, lines, status, depth, multiThreaded, errorMes
   }, [isSettingsOpen]);
 
   const statusText = status === "initializing"
-    ? "Starting Stockfish…"
+    ? "Warming up the engine…"
     : status === "analyzing"
-      ? `Analyzing this position at depth ${depth}…`
+      ? reachedDepth
+        ? `Analyzing position (depth ${reachedDepth} of ${depth})…`
+        : `Analyzing position…`
       : status === "error"
-        ? errorMessage || "Engine error"
-        : `Ready at depth ${depth} · ${multiThreaded ? "multi-core" : "single-core"}`;
+        ? errorMessage || "Analysis unavailable"
+        : `Analysis complete at depth ${reachedDepth ?? depth}`;
 
   const toggleSettings = () => {
     setDraftDepth(String(depth));
@@ -149,7 +160,15 @@ export function EngineLines({ fen, lines, status, depth, multiThreaded, errorMes
         <div className="min-w-0">
           <div className="flex items-center gap-2 text-[var(--accent)]">
             <AnalysisIcon />
-            <h2 id="engine-heading" className="font-serif text-sm font-semibold text-[var(--ink)]">Engine lines</h2>
+            <div className="flex items-center gap-2">
+              <h2 id="engine-heading" className="font-serif text-sm font-semibold text-[var(--ink)]">Engine Analysis</h2>
+              {(status === "analyzing" || status === "ready") && (
+                <span className="relative flex h-1.5 w-1.5" title={status === "analyzing" ? "Analyzing..." : "Engine ready"}>
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[var(--accent)] opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-[var(--accent)]"></span>
+                </span>
+              )}
+            </div>
           </div>
           <p className={`mt-0.5 truncate text-[9px] font-medium ${status === "error" ? "text-[var(--danger)]" : "text-[var(--ink-muted)]"}`} role="status" aria-live="polite">{statusText}</p>
         </div>
@@ -160,8 +179,8 @@ export function EngineLines({ fen, lines, status, depth, multiThreaded, errorMes
           </button>
           {isSettingsOpen && (
             <form onSubmit={submitDepth} role="dialog" aria-label="Engine depth settings" className="absolute right-0 top-10 z-30 w-56 rounded-xl border border-[var(--border-strong)] bg-[var(--surface-raised)] p-3 shadow-[var(--shadow-card)]">
-              <label htmlFor="engine-depth" className="text-xs font-semibold text-[var(--ink)]">Analysis depth</label>
-              <p id="engine-depth-hint" className="mt-0.5 text-[10px] leading-4 text-[var(--ink-muted)]">Choose a whole number from 10 to 25.</p>
+              <label htmlFor="engine-depth" className="text-xs font-semibold text-[var(--ink)]">Analysis Depth</label>
+              <p id="engine-depth-hint" className="mt-0.5 text-[10px] leading-4 text-[var(--ink-muted)]">Choose how deeply the engine thinks (10–25). Higher numbers take longer.</p>
               <input ref={inputRef} id="engine-depth" type="number" min={10} max={25} step={1} value={draftDepth} onChange={(event) => { setDraftDepth(event.target.value); setValidationError(null); }} aria-describedby={`engine-depth-hint${validationError ? " engine-depth-error" : ""}`} aria-invalid={Boolean(validationError)} className="mt-2 w-full rounded-lg border border-[var(--border)] bg-[var(--surface)] px-2.5 py-2 font-mono text-sm text-[var(--ink)]" />
               {validationError && <p id="engine-depth-error" role="alert" className="mt-1 text-[10px] text-[var(--danger)]">{validationError}</p>}
               <div className="mt-3 flex justify-end gap-2">
@@ -176,9 +195,9 @@ export function EngineLines({ fen, lines, status, depth, multiThreaded, errorMes
         {rows.length === 0 && (
           <div className="px-4 py-4 text-xs text-[var(--ink-muted)]" role="status">
             {status === "initializing"
-              ? "Preparing the local engine…"
+              ? "Warming up Stockfish in your browser…"
               : status === "analyzing"
-                ? "Calculating the strongest continuations…"
+                ? "Calculating the best moves…"
                 : status === "error"
                   ? "Analysis is unavailable for this position."
                   : "No candidate lines available."}
@@ -195,7 +214,7 @@ export function EngineLines({ fen, lines, status, depth, multiThreaded, errorMes
                 <button
                   key={i}
                   type="button"
-                  onClick={() => onPvMoveClick?.(token.fen)}
+                  onClick={() => onPvMoveClick?.({ fen: token.fen, uciMoves: token.uciMoves })}
                   className="rounded px-0.5 text-[var(--ink)] transition-colors hover:bg-[var(--accent-soft)] hover:text-[var(--accent)] focus-visible:outline-1 focus-visible:outline-[var(--accent)]"
                   title={`Navigate to this position`}
                 >

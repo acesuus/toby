@@ -1,5 +1,7 @@
 import type { EngineLine } from "@/lib/types";
 
+export const MIN_PROGRESSIVE_DEPTH = 12;
+
 export interface PositionAnalysisEngine {
   analyzeLines(
     fen: string,
@@ -11,31 +13,28 @@ export interface PositionAnalysisEngine {
 }
 
 interface PositionAnalysisCallbacks {
-  onResult: (lines: EngineLine[]) => void;
+  onResult: (lines: EngineLine[], completedDepth: number, complete: boolean) => void;
   onError: (error: Error) => void;
 }
 
-/**
- * Cache key: "fen\0depth" → engine lines.
- * Results are cached after each successful analysis so that revisiting
- * a position returns instantly without re-running the engine.
- */
-function cacheKey(fen: string, depth: number): string {
-  return `${fen}\0${depth}`;
+interface CachedAnalysis {
+  fen: string;
+  depth: number;
+  multiPV: number;
+  lines: EngineLine[];
 }
 
-/**
- * Coordinates one position search at a time with an in-memory cache.
- * Superseded requests are aborted, stopped in Stockfish, and prevented
- * from publishing stale results. Previously-analyzed positions resolve
- * synchronously from cache.
- */
+function cacheKey(fen: string, depth: number, multiPV: number): string {
+  return `${fen}\0${depth}\0${multiPV}`;
+}
+
+/** Coordinates progressive live analysis with cancellation and depth-aware caching. */
 export class CurrentPositionAnalysis {
   private requestId = 0;
   private controller: AbortController | null = null;
-  private cache = new Map<string, EngineLine[]>();
+  private cache = new Map<string, CachedAnalysis>();
   private debounceTimer: ReturnType<typeof setTimeout> | null = null;
-  private debounceMs: number;
+  private readonly debounceMs: number;
 
   constructor(
     private readonly engine: PositionAnalysisEngine,
@@ -45,83 +44,57 @@ export class CurrentPositionAnalysis {
     this.debounceMs = options?.debounceMs ?? 150;
   }
 
-  /**
-   * Analyze a position. If cached, returns immediately via callback.
-   * Otherwise debounces rapid navigation, then sends to the engine.
-   */
   analyze(
     fen: string,
-    depth: number,
+    maxDepth: number,
     callbacks: PositionAnalysisCallbacks
   ): void {
     this.cancel();
+    const requestId = this.requestId;
 
-    // Check cache first — instant return for previously-analyzed positions
-    const key = cacheKey(fen, depth);
-    const cached = this.cache.get(key);
-    if (cached) {
-      callbacks.onResult(cached);
+    const completeCached = this.findCachedAtLeast(fen, maxDepth);
+    if (completeCached) {
+      callbacks.onResult(completeCached.lines, completeCached.depth, true);
       return;
     }
 
-    // Also check if we have a result at a higher depth that satisfies this request
-    for (const [k, lines] of this.cache) {
-      if (k.startsWith(fen + "\0")) {
-        const cachedDepth = parseInt(k.split("\0")[1], 10);
-        if (cachedDepth >= depth) {
-          callbacks.onResult(lines);
-          return;
-        }
-      }
+    const intermediate = this.findBestCachedAtOrBelow(fen, maxDepth);
+    if (intermediate) {
+      callbacks.onResult(intermediate.lines, intermediate.depth, false);
     }
 
-    const requestId = this.requestId;
+    const firstDepth = Math.min(MIN_PROGRESSIVE_DEPTH, maxDepth);
+    const startDepth = Math.max(firstDepth, (intermediate?.depth ?? firstDepth - 1) + 1);
 
-    // Debounce: wait before firing the engine to handle rapid navigation
-    this.debounceTimer = setTimeout(() => {
-      this.debounceTimer = null;
-
-      // Verify this request is still current after the debounce delay
+    const start = () => {
       if (requestId !== this.requestId) return;
-
       const controller = new AbortController();
       this.controller = controller;
+      void this.runProgressive(fen, startDepth, maxDepth, requestId, controller, callbacks);
+    };
 
-      void this.engine
-        .analyzeLines(fen, depth, this.multiPV, controller.signal)
-        .then((lines) => {
-          if (this.isCurrent(requestId, controller)) {
-            this.cache.set(key, lines);
-            callbacks.onResult(lines);
-          }
-        })
-        .catch((reason: unknown) => {
-          if (!this.isCurrent(requestId, controller)) return;
-          const error = reason instanceof Error ? reason : new Error("Position analysis failed");
-          if (error.name !== "AbortError") callbacks.onError(error);
-        });
-    }, this.debounceMs);
+    if (this.debounceMs <= 0) start();
+    else {
+      this.debounceTimer = setTimeout(() => {
+        this.debounceTimer = null;
+        start();
+      }, this.debounceMs);
+    }
   }
 
-  /**
-   * Pre-populate the cache with results from a full-game review.
-   * Call this after analyzeGame() completes so navigating reviewed
-   * positions is instant.
-   */
-  populateCache(fen: string, depth: number, lines: EngineLine[]): void {
-    this.cache.set(cacheKey(fen, depth), lines);
+  populateCache(
+    fen: string,
+    depth: number,
+    lines: EngineLine[],
+    multiPV = Math.max(1, lines.length)
+  ): void {
+    this.setCache({ fen, depth, multiPV, lines });
   }
 
-  /**
-   * Check if a position is already cached (useful for UI hints).
-   */
-  isCached(fen: string, depth: number): boolean {
-    return this.cache.has(cacheKey(fen, depth));
+  isCached(fen: string, maxDepth: number): boolean {
+    return this.findCachedAtLeast(fen, maxDepth) !== null;
   }
 
-  /**
-   * Clear the entire cache (e.g., when loading a new game).
-   */
   clearCache(): void {
     this.cache.clear();
   }
@@ -140,6 +113,68 @@ export class CurrentPositionAnalysis {
   dispose(): void {
     this.cancel();
     this.cache.clear();
+  }
+
+  private async runProgressive(
+    fen: string,
+    startDepth: number,
+    maxDepth: number,
+    requestId: number,
+    controller: AbortController,
+    callbacks: PositionAnalysisCallbacks
+  ): Promise<void> {
+    try {
+      for (let depth = startDepth; depth <= maxDepth; depth += 1) {
+        if (!this.isCurrent(requestId, controller)) return;
+
+        const cached = this.findExact(fen, depth);
+        const lines = cached?.lines ?? await this.engine.analyzeLines(
+          fen,
+          depth,
+          this.multiPV,
+          controller.signal
+        );
+
+        if (!this.isCurrent(requestId, controller)) return;
+        if (!cached) this.setCache({ fen, depth, multiPV: this.multiPV, lines });
+        callbacks.onResult(lines, depth, depth === maxDepth);
+      }
+
+      if (this.isCurrent(requestId, controller)) this.controller = null;
+    } catch (reason: unknown) {
+      if (!this.isCurrent(requestId, controller)) return;
+      this.controller = null;
+      const error = reason instanceof Error
+        ? reason
+        : new Error("Position analysis failed");
+      if (error.name !== "AbortError") callbacks.onError(error);
+    }
+  }
+
+  private setCache(entry: CachedAnalysis): void {
+    this.cache.set(cacheKey(entry.fen, entry.depth, entry.multiPV), entry);
+  }
+
+  private compatibleEntries(fen: string): CachedAnalysis[] {
+    return [...this.cache.values()].filter(
+      (entry) => entry.fen === fen && entry.multiPV >= this.multiPV
+    );
+  }
+
+  private findExact(fen: string, depth: number): CachedAnalysis | null {
+    return this.compatibleEntries(fen).find((entry) => entry.depth === depth) ?? null;
+  }
+
+  private findCachedAtLeast(fen: string, depth: number): CachedAnalysis | null {
+    return this.compatibleEntries(fen)
+      .filter((entry) => entry.depth >= depth)
+      .sort((a, b) => a.depth - b.depth)[0] ?? null;
+  }
+
+  private findBestCachedAtOrBelow(fen: string, depth: number): CachedAnalysis | null {
+    return this.compatibleEntries(fen)
+      .filter((entry) => entry.depth <= depth)
+      .sort((a, b) => b.depth - a.depth)[0] ?? null;
   }
 
   private isCurrent(requestId: number, controller: AbortController): boolean {

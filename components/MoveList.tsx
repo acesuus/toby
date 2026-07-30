@@ -80,7 +80,7 @@ export function MoveList() {
     <section className="flex min-h-0 flex-1 flex-col" aria-labelledby="moves-heading">
       <div className="flex items-center justify-between border-y border-[var(--border)] px-4 py-2.5">
         <h2 id="moves-heading" className="font-serif text-sm font-semibold text-[var(--ink)]">Game moves</h2>
-        <span className="font-mono text-[10px] text-[var(--ink-muted)]">{parsedGame.moves.length} plies</span>
+        <span className="font-mono text-[10px] text-[var(--ink-muted)]">{parsedGame.moves.length} moves</span>
       </div>
       <ol ref={listRef} className="min-h-48 flex-1 space-y-0.5 overflow-y-auto p-2 lg:min-h-0" aria-label="Game moves">
         {moveRows.map((row) => (
@@ -110,7 +110,7 @@ interface MoveButtonProps {
 const MoveButton = forwardRef<HTMLButtonElement, MoveButtonProps>(function MoveButton({ san, grade, isActive, onClick, label }, ref) {
   const gradeLabel = grade ? GRADE_LABELS[grade] : undefined;
   return (
-    <button ref={ref} type="button" onClick={onClick} aria-label={`${label}${gradeLabel ? `, ${gradeLabel}` : ""}`} aria-current={isActive ? "true" : undefined} className={`min-w-0 rounded-md px-2 py-1.5 text-left font-mono text-xs transition-colors active:scale-[0.98] ${isActive ? "bg-[var(--accent)] font-semibold text-[#fffaf0] shadow-sm" : "text-[var(--ink)] hover:bg-[var(--accent-soft)]"}`}>
+    <button ref={ref} type="button" onClick={onClick} aria-label={`${label}${gradeLabel ? `, ${gradeLabel}` : ""}`} aria-current={isActive ? "true" : undefined} className={`min-w-0 w-full rounded-md px-2.5 py-1.5 text-left font-mono text-xs transition-all active:scale-[0.98] ${isActive ? "bg-[color-mix(in_srgb,var(--accent)_15%,transparent)] ring-1 ring-[color-mix(in_srgb,var(--accent)_60%,transparent)] font-bold text-[var(--accent)] shadow-sm" : "text-[var(--ink)] hover:bg-[var(--control)] hover:text-[var(--accent)]"}`}>
       <span className="flex min-w-0 items-center gap-1.5">
         <span className="min-w-0 flex-1 truncate">{san}</span>
         {grade && (

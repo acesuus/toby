@@ -1,7 +1,7 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
 
 const MODEL_NAME = "gemini-2.5-flash";
-const API_KEY_ENV = "AIzaSyDOyM3m8F7Wr4O1e6Z-afQdyMaKTY8OOEQ";
+const API_KEY_ENV = "GEMINI_API_KEY";
 
 /**
  * Sends a prompt to the configured LLM provider and returns the text response.

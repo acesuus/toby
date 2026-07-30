@@ -52,6 +52,13 @@ export function NavigationControls() {
 
   return (
     <div className="flex items-center justify-between gap-2 border-t border-[var(--border)] bg-[var(--control)] px-3 py-3" aria-label="Move navigation">
+      {/* Screen reader announcer */}
+      <div aria-live="polite" aria-atomic="true" className="sr-only">
+        {currentMoveIndex >= 0 && parsedGame?.moves[currentMoveIndex] 
+          ? `Move ${Math.floor(currentMoveIndex / 2) + 1}${currentMoveIndex % 2 === 0 ? '.' : '...'} ${parsedGame.moves[currentMoveIndex].san}`
+          : "Starting position"}
+      </div>
+
       <span className="hidden text-[10px] font-medium uppercase tracking-[0.12em] text-[var(--ink-muted)] sm:block">Navigate</span>
       <div className="flex flex-1 items-center justify-center gap-1.5 sm:flex-none">
         {controls.map((control) => (

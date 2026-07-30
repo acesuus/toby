@@ -27,6 +27,7 @@ export type GameReviewAction =
   | { type: "selectGame"; payload: string | null }
   | { type: "setParsedGame"; payload: ParsedGame | null }
   | { type: "startAnalysis" }
+  | { type: "cancelAnalysis" }
   | { type: "updateProgress"; payload: number }
   | { type: "addEvaluation"; payload: EngineEvaluation }
   | { type: "completeAnalysis" }
@@ -95,6 +96,15 @@ export function gameReviewReducer(
       return {
         ...state,
         analysisStatus: "running",
+        analysisProgress: 0,
+        evaluations: [],
+        error: null,
+      };
+
+    case "cancelAnalysis":
+      return {
+        ...state,
+        analysisStatus: "idle",
         analysisProgress: 0,
         evaluations: [],
         error: null,

@@ -58,22 +58,20 @@ export function CoachDialogue({
   return (
     <section
       aria-label="Toby's coaching"
-      className="relative border-b border-[var(--border)] bg-[var(--control)] px-4 py-3 pl-[5.5rem]"
+      className="relative h-28 shrink-0 border-b border-[var(--border)] bg-[var(--control)] px-4 py-2 pl-[4.5rem]"
     >
-      {/* Mascot — large, no circle, fills the card height */}
-      <div className="absolute bottom-0 left-2 top-0 flex w-16 items-end" aria-hidden="true">
-        <Image src="/mascot/toby_vector.svg" alt="" width={64} height={96} unoptimized className="h-full w-auto object-contain object-bottom" />
+      {/* Mascot — anchored bottom-left, sized to fill panel height */}
+      <div className="absolute bottom-1 left-1.5 top-1 w-12" aria-hidden="true">
+        <Image src="/mascot/toby_png.png" alt="" fill sizes="48px" className="object-contain object-bottom" />
       </div>
 
-      <div className="min-w-0">
-          <div className="flex items-center justify-between gap-2">
+      <div className="flex h-full min-w-0 flex-col justify-between">
+          <div className="flex shrink-0 items-center justify-between gap-2">
             <span className="font-serif text-xs font-semibold text-[var(--ink)]">Toby</span>
             <div className="flex items-center gap-2">
-              {grade && (
-                <span className={`text-[10px] font-semibold ${GRADE_ACCENT[grade]}`}>
-                  {GRADE_LABEL[grade]}
-                </span>
-              )}
+              <span className={`inline-block min-w-[4.75rem] text-right text-[10px] font-semibold ${grade ? GRADE_ACCENT[grade] : "text-transparent"}`} aria-hidden={!grade}>
+                {grade ? GRADE_LABEL[grade] : "\u00A0"}
+              </span>
               <span className="font-mono text-[10px] text-[var(--ink-muted)]">
                 {step} / {totalSteps}
               </span>
@@ -81,20 +79,22 @@ export function CoachDialogue({
           </div>
 
           {loading ? (
-            <div className="mt-1 space-y-1.5" aria-label="Loading coaching comment">
+            <div className="mt-0.5 space-y-1.5" aria-label="Loading coaching comment">
               <div className="h-3.5 w-3/4 animate-pulse rounded bg-[var(--border)]" />
               <div className="h-3.5 w-1/2 animate-pulse rounded bg-[var(--border)]" />
             </div>
           ) : (
-            <p
-              className="mt-1 text-[13px] leading-5 text-[var(--ink)]"
-              aria-live="polite"
-            >
-              {text}
-            </p>
+            <div className="mt-0.5 max-h-10 overflow-y-auto">
+              <p
+                className="text-[13px] leading-5 text-[var(--ink)]"
+                aria-live="polite"
+              >
+                {text}
+              </p>
+            </div>
           )}
 
-          <div className="mt-2.5 flex items-center gap-2">
+          <div className="flex shrink-0 items-center gap-2">
             <button
               type="button"
               onClick={onPrev}

@@ -109,17 +109,17 @@ function AccuracyRing({ accuracy, label }: { accuracy: number; label: string }) 
   const offset = circumference - (accuracy / 100) * circumference;
 
   return (
-    <div className="flex flex-col items-center gap-1">
-      <div className="relative size-[60px]">
-        <svg width="60" height="60" viewBox="0 0 60 60" className="rotate-[-90deg]">
-          <circle cx="30" cy="30" r={radius} fill="none" stroke="var(--border)" strokeWidth="4" />
+    <div className="flex flex-col items-center gap-2.5">
+      <div className="relative size-[76px]">
+        <svg width="76" height="76" viewBox="0 0 76 76" className="rotate-[-90deg]">
+          <circle cx="38" cy="38" r={radius} fill="none" stroke="var(--border)" strokeWidth="6" />
           <circle
-            cx="30"
-            cy="30"
+            cx="38"
+            cy="38"
             r={radius}
             fill="none"
             stroke="var(--accent)"
-            strokeWidth="4"
+            strokeWidth="6"
             strokeLinecap="round"
             strokeDasharray={circumference}
             strokeDashoffset={offset}
@@ -150,14 +150,13 @@ export function GameReviewSummary({
   onStartReview,
 }: GameReviewSummaryProps) {
   return (
-    <section className="overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--surface-raised)] shadow-[var(--shadow-card)]">
-      {/* Review heading */}
-      <div className="flex items-center gap-3 border-b border-[var(--border)] px-4 py-3">
-        <span className="grid size-9 shrink-0 place-items-center overflow-hidden rounded-full bg-[var(--accent-soft)]" aria-hidden="true">
-          <Image src="/mascot/toby_vector.svg" alt="" width={36} height={36} unoptimized className="size-full object-contain" />
+    <section className="overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--surface-raised)]">
+      {/* Premium Coach Quote */}
+      <div className="flex items-start gap-4 border-b border-[var(--border)] bg-[var(--surface)] px-5 py-5">
+        <span className="grid size-12 shrink-0 place-items-center overflow-hidden rounded-full border border-[var(--border)] bg-[var(--control)]">
+          <Image src="/mascot/toby_png.png" alt="Coach Toby" width={40} height={40} className="size-full object-contain" />
         </span>
-        <div className="min-w-0">
-          <h2 className="font-serif text-sm font-semibold text-[var(--ink)]">Game review</h2>
+        <div className="min-w-0 flex flex-col gap-1.5 mt-1">       <h2 className="font-serif text-sm font-semibold text-[var(--ink)]">Game review</h2>
           <p className="truncate text-[11px] text-[var(--ink-muted)]">
             {llmSummary || coachComment || "Let’s see how you played."}
           </p>
@@ -192,8 +191,9 @@ export function GameReviewSummary({
               >
                 <span className="text-xs font-medium text-[var(--ink)]">{label}</span>
                 <span className="text-center text-sm font-bold tabular-nums text-[var(--ink)]">{wCount}</span>
+                {/* Icon */}
                 <span
-                  className={`grid size-7 place-items-center justify-self-center rounded-full font-mono text-[10px] font-black leading-none shadow-sm ${badgeClass} ${symbolClass}`}
+                  className={`relative z-10 grid size-7 place-items-center justify-self-center rounded-full font-mono text-[10px] font-black leading-none ${badgeClass} ${symbolClass}`}
                   title={label}
                   aria-label={`${label} classification`}
                 >
@@ -208,9 +208,9 @@ export function GameReviewSummary({
         <button
           type="button"
           onClick={onStartReview}
-          className="mt-3 w-full rounded-xl bg-[var(--accent)] py-3 text-sm font-bold text-[#fffaf0] shadow-sm transition hover:-translate-y-px hover:bg-[var(--accent-hover)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent)] active:translate-y-0 motion-reduce:transform-none"
+          className="mt-4 w-full rounded-xl bg-[var(--accent)] py-3.5 text-sm font-bold tracking-wide text-[#fffaf0] transition hover:bg-[var(--accent-hover)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent)]"
         >
-          Start review
+          START REVIEW
         </button>
       </div>
     </section>

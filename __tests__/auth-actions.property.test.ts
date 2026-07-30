@@ -71,9 +71,9 @@ describe("Auth Actions — Property-Based Tests", () => {
    *
    * **Validates: Requirements 2.2**
    */
-  it("Property 2: Login errors are generic — always returns identical message regardless of credentials or Supabase error", () => {
-    fc.assert(
-      fc.property(
+  it("Property 2: Login errors are generic — always returns identical message regardless of credentials or Supabase error", async () => {
+    await fc.assert(
+      fc.asyncProperty(
         fc.emailAddress(),
         fc.string({ minLength: 1 }),
         fc.string({ minLength: 1 }),

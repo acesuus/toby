@@ -5,13 +5,14 @@ import {
   CurrentPositionAnalysis,
   type PositionAnalysisEngine,
 } from "@/lib/current-position-analysis";
+import { findGameContinuationIndex } from "@/lib/pv-navigation";
 import type { EngineLine } from "@/lib/types";
 
 const quietLine: EngineLine = {
   multipv: 1,
   score: { type: "cp", value: 24 },
   pv: ["e2e4"],
-  depth: 18,
+  depth: 12,
 };
 
 function deferred<T>() {
@@ -24,6 +25,10 @@ function deferred<T>() {
   return { promise, resolve, reject };
 }
 
+function lineAt(depth: number): EngineLine[] {
+  return [{ ...quietLine, depth }];
+}
+
 describe("review page position analysis", () => {
   it("formats centipawn and mate evaluations for the current-position eval bar", () => {
     expect(formatEvaluation({ type: "cp", value: 125 })).toBe("+1.25");
@@ -33,7 +38,7 @@ describe("review page position analysis", () => {
     expect(formatEvaluation({ type: "mate", value: 0 })).toBe("Mate");
   });
 
-  it("accepts only integer Stockfish depths from 10 through 25", () => {
+  it("accepts only integer maximum depths from 10 through 25", () => {
     expect(getDepthValidationError(10)).toBeNull();
     expect(getDepthValidationError(25)).toBeNull();
     expect(getDepthValidationError(9)).toMatch(/10 to 25/);
@@ -42,28 +47,42 @@ describe("review page position analysis", () => {
     expect(getDepthValidationError(Number.NaN)).toMatch(/whole number/);
   });
 
-  it("analyzes only the requested position with the configured depth and three lines", async () => {
-    const calls: Array<{ fen: string; depth: number; multiPV: number }> = [];
+  it("publishes depths 12 through the selected maximum in order", async () => {
+    const calls: number[] = [];
+    const updates: Array<{ depth: number; complete: boolean }> = [];
+    const done = deferred<void>();
     const engine: PositionAnalysisEngine = {
-      analyzeLines: async (fen, depth, multiPV) => {
-        calls.push({ fen, depth, multiPV });
-        return [quietLine];
+      analyzeLines: async (_fen, depth, multiPV) => {
+        expect(multiPV).toBe(3);
+        calls.push(depth);
+        return lineAt(depth);
       },
       stop: () => undefined,
     };
-    const analysis = new CurrentPositionAnalysis(engine, 3);
-    const result = deferred<EngineLine[]>();
+    const analysis = new CurrentPositionAnalysis(engine, 3, { debounceMs: 0 });
 
-    analysis.analyze("current-fen", 22, {
-      onResult: result.resolve,
-      onError: result.reject,
+    analysis.analyze("current-fen", 18, {
+      onResult: (_lines, depth, complete) => {
+        updates.push({ depth, complete });
+        if (complete) done.resolve();
+      },
+      onError: done.reject,
     });
 
-    await expect(result.promise).resolves.toEqual([quietLine]);
-    expect(calls).toEqual([{ fen: "current-fen", depth: 22, multiPV: 3 }]);
+    await done.promise;
+    expect(calls).toEqual([12, 13, 14, 15, 16, 17, 18]);
+    expect(updates).toEqual([
+      { depth: 12, complete: false },
+      { depth: 13, complete: false },
+      { depth: 14, complete: false },
+      { depth: 15, complete: false },
+      { depth: 16, complete: false },
+      { depth: 17, complete: false },
+      { depth: 18, complete: true },
+    ]);
   });
 
-  it("publishes only the latest result when position or depth changes", async () => {
+  it("publishes only the latest result when the position changes", async () => {
     const first = deferred<EngineLine[]>();
     const second = deferred<EngineLine[]>();
     const signals: AbortSignal[] = [];
@@ -77,23 +96,71 @@ describe("review page position analysis", () => {
       },
       stop: () => { stopCount += 1; },
     };
-    const analysis = new CurrentPositionAnalysis(engine, 3);
-    const published: EngineLine[][] = [];
+    const analysis = new CurrentPositionAnalysis(engine, 3, { debounceMs: 0 });
+    const published: Array<{ depth: number; lines: EngineLine[] }> = [];
     const errors: Error[] = [];
 
-    analysis.analyze("old-fen", 18, { onResult: (lines) => published.push(lines), onError: (reason) => errors.push(reason) });
-    analysis.analyze("new-fen", 24, { onResult: (lines) => published.push(lines), onError: (reason) => errors.push(reason) });
+    analysis.analyze("old-fen", 18, {
+      onResult: (lines, depth) => published.push({ depth, lines }),
+      onError: (reason) => errors.push(reason),
+    });
+    analysis.analyze("new-fen", 12, {
+      onResult: (lines, depth) => published.push({ depth, lines }),
+      onError: (reason) => errors.push(reason),
+    });
 
     expect(signals[0].aborted).toBe(true);
-    first.resolve([{ ...quietLine, depth: 18 }]);
+    first.resolve(lineAt(12));
     await Promise.resolve();
     expect(published).toEqual([]);
 
-    const latestLines = [{ ...quietLine, depth: 24 }];
+    const latestLines = lineAt(12);
     second.resolve(latestLines);
     await Promise.resolve();
-    expect(published).toEqual([latestLines]);
+    expect(published).toEqual([{ depth: 12, lines: latestLines }]);
     expect(errors).toEqual([]);
     expect(stopCount).toBeGreaterThanOrEqual(2);
+  });
+
+  it("does not use a single-PV batch result as a three-line live cache hit", async () => {
+    const calls: number[] = [];
+    const done = deferred<void>();
+    const engine: PositionAnalysisEngine = {
+      analyzeLines: async (_fen, depth) => {
+        calls.push(depth);
+        return lineAt(depth);
+      },
+      stop: () => undefined,
+    };
+    const analysis = new CurrentPositionAnalysis(engine, 3, { debounceMs: 0 });
+    analysis.populateCache("current-fen", 14, lineAt(14), 1);
+
+    analysis.analyze("current-fen", 14, {
+      onResult: (_lines, _depth, complete) => { if (complete) done.resolve(); },
+      onError: done.reject,
+    });
+
+    await done.promise;
+    expect(calls).toEqual([12, 13, 14]);
+  });
+});
+
+describe("engine-line game navigation", () => {
+  const gameMoves = [
+    { uci: "e2e4" },
+    { uci: "e7e5" },
+    { uci: "g1f3" },
+    { uci: "b8c6" },
+  ];
+
+  it("returns the game index reached by a matching PV prefix", () => {
+    expect(findGameContinuationIndex(gameMoves, -1, ["e2e4"])).toBe(0);
+    expect(findGameContinuationIndex(gameMoves, 0, ["e7e5", "g1f3"])).toBe(2);
+  });
+
+  it("keeps divergent or out-of-range PV moves as previews", () => {
+    expect(findGameContinuationIndex(gameMoves, 0, ["c7c5"])).toBeNull();
+    expect(findGameContinuationIndex(gameMoves, 3, ["a2a3"])).toBeNull();
+    expect(findGameContinuationIndex(gameMoves, 0, [])).toBeNull();
   });
 });

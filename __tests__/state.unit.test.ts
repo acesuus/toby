@@ -87,3 +87,32 @@ describe("State Management - setDepth validation", () => {
     expect(result.analysisDepth).toBe(25);
   });
 });
+
+
+describe("State Management - analysis cancellation", () => {
+  it("returns a running batch review to a clean idle state", () => {
+    const state: GameReviewState = {
+      ...initialState,
+      analysisStatus: "running",
+      analysisProgress: 0.6,
+      evaluations: [
+        {
+          fen: "test-fen",
+          depth: 14,
+          score: { type: "cp", value: 20 },
+          bestMove: "e2e4",
+          pv: ["e2e4"],
+          nodes: 100,
+          time: 10,
+        },
+      ],
+    };
+
+    const result = gameReviewReducer(state, { type: "cancelAnalysis" });
+
+    expect(result.analysisStatus).toBe("idle");
+    expect(result.analysisProgress).toBe(0);
+    expect(result.evaluations).toEqual([]);
+    expect(result.error).toBeNull();
+  });
+});

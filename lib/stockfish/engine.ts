@@ -252,19 +252,19 @@ export class StockfishEngine {
 
             const bestMove = line.split(" ")[1] || "";
 
-            if (!lastInfo || !bestMove || bestMove === "(none)") {
+            if (!bestMove) {
               reject(new Error(`Failed to parse engine output for position: ${fen}`));
               return;
             }
 
             resolve({
               fen,
-              depth: lastInfo.depth,
-              score: normalizeScoreToWhite(lastInfo.score, fen),
+              depth: lastInfo?.depth || 0,
+              score: normalizeScoreToWhite(lastInfo?.score || { type: "mate", value: 0 }, fen),
               bestMove,
-              pv: lastInfo.pv,
-              nodes: lastInfo.nodes,
-              time: lastInfo.time,
+              pv: lastInfo?.pv || [],
+              nodes: lastInfo?.nodes || 0,
+              time: lastInfo?.time || 0,
             });
           }
         };

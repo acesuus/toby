@@ -113,7 +113,7 @@ function buildGamesTable() {
           });
           // Apply lt filters
           for (const [col, val] of Object.entries(ctx.ltFilters)) {
-            results = results.filter((g: any) => g[col] < val);
+            results = results.filter((g: any) => g[col] < (val as any));
           }
           // Apply ordering
           if (ctx.orderCol) {

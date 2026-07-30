@@ -3,7 +3,11 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import Board from "@/components/Board";
-import { EngineLines, type EngineAnalysisStatus } from "@/components/EngineLines";
+import {
+  EngineLines,
+  type EngineAnalysisStatus,
+  type PvMoveSelection,
+} from "@/components/EngineLines";
 import { EvalBar } from "@/components/EvalBar";
 import { GameReviewSummary } from "@/components/GameReviewSummary";
 import { MoveList } from "@/components/MoveList";
@@ -18,6 +22,7 @@ import { getTemplatePhrase, getFallbackPhrase } from "@/lib/coach/templates";
 import type { NotableGrade, RoutineGrade } from "@/lib/coach/types";
 import { CurrentPositionAnalysis } from "@/lib/current-position-analysis";
 import { useGameReview } from "@/lib/game-review-context";
+import { findGameContinuationIndex } from "@/lib/pv-navigation";
 import { analyzeGame } from "@/lib/stockfish/analyze";
 import { StockfishEngine } from "@/lib/stockfish/engine";
 import type { EngineLine } from "@/lib/types";
@@ -32,6 +37,7 @@ interface PositionAnalysisState {
   key: string;
   status: Exclude<EngineAnalysisStatus, "initializing">;
   lines: EngineLine[];
+  depth: number | null;
   error: string | null;
 }
 
@@ -61,15 +67,12 @@ function generateCoachComment(whiteAcc: number, blackAcc: number): string {
   return "A few missed opportunities. Let's take a closer look.";
 }
 
-type ConsoleTab = "engine" | "moves";
-
 export default function ReviewPage() {
   const { state, dispatch } = useGameReview();
   const { parsedGame, analysisDepth, currentMoveIndex, error, analysisStatus, analysisProgress, gameAccuracy } = state;
   const analysisRef = useRef<CurrentPositionAnalysis | null>(null);
   const generationRef = useRef(0);
   const requestKeyRef = useRef("");
-  const [activeTab, setActiveTab] = useState<ConsoleTab>("engine");
   const [enginePhase, setEnginePhase] = useState<EnginePhase>("initializing");
   const [engineError, setEngineError] = useState<string | null>(null);
   const [isMultiThreaded, setIsMultiThreaded] = useState(false);
@@ -77,6 +80,7 @@ export default function ReviewPage() {
     key: "",
     status: "analyzing",
     lines: [],
+    depth: null,
     error: null,
   });
 
@@ -96,16 +100,17 @@ export default function ReviewPage() {
   const reviewEngineRef = useRef<StockfishEngine | null>(null);
   const reviewAbortRef = useRef<AbortController | null>(null);
 
-  const currentFen = parsedGame
+  const baseFen = parsedGame
     ? currentMoveIndex === -1
       ? parsedGame.startingFen
       : parsedGame.moves[currentMoveIndex]?.fenAfter ?? parsedGame.startingFen
     : "";
+  const currentFen = previewFen ?? baseFen;
   const analysisKey = `${currentFen}\u0000${analysisDepth}`;
 
   // Clear preview when user navigates via move list or arrows
   useEffect(() => {
-    setPreviewFen(null);
+    queueMicrotask(() => setPreviewFen(null));
   }, [currentMoveIndex]);
 
   useEffect(() => {
@@ -117,7 +122,7 @@ export default function ReviewPage() {
       if (generationRef.current !== generation) return;
       setEnginePhase("initializing");
       setEngineError(null);
-      setPositionAnalysis({ key: "", status: "analyzing", lines: [], error: null });
+      setPositionAnalysis({ key: "", status: "analyzing", lines: [], depth: null, error: null });
     });
 
     void engine.initialize().then(() => {
@@ -149,31 +154,48 @@ export default function ReviewPage() {
 
     requestKeyRef.current = analysisKey;
 
-    // If cached, the analyze() call will invoke onResult synchronously,
-    // so only show "analyzing" state if not cached (avoids flash).
-    if (!analysis.isCached(currentFen, analysisDepth)) {
-      queueMicrotask(() => {
-        if (requestKeyRef.current !== analysisKey) return;
-        setPositionAnalysis({ key: analysisKey, status: "analyzing", lines: [], error: null });
-      });
-    }
+    const beginAnalysis = () => {
+      if (requestKeyRef.current !== analysisKey) return;
+      if (!analysis.isCached(currentFen, analysisDepth)) {
+        setPositionAnalysis({
+          key: analysisKey,
+          status: "analyzing",
+          lines: [],
+          depth: null,
+          error: null,
+        });
+      }
 
-    analysis.analyze(currentFen, analysisDepth, {
-      onResult: (lines) => {
-        if (requestKeyRef.current !== analysisKey) return;
-        setPositionAnalysis({ key: analysisKey, status: "ready", lines, error: null });
-      },
-      onError: (analysisError) => {
-        if (requestKeyRef.current !== analysisKey) return;
-        setPositionAnalysis({ key: analysisKey, status: "error", lines: [], error: analysisError.message });
-      },
-    });
+      analysis.analyze(currentFen, analysisDepth, {
+        onResult: (lines, completedDepth, complete) => {
+          if (requestKeyRef.current !== analysisKey) return;
+          setPositionAnalysis({
+            key: analysisKey,
+            status: complete ? "ready" : "analyzing",
+            lines,
+            depth: completedDepth,
+            error: null,
+          });
+        },
+        onError: (analysisError) => {
+          if (requestKeyRef.current !== analysisKey) return;
+          setPositionAnalysis((current) => ({
+            ...current,
+            key: analysisKey,
+            status: "error",
+            error: analysisError.message,
+          }));
+        },
+      });
+    };
+
+    queueMicrotask(beginAnalysis);
 
     return () => {
       if (requestKeyRef.current === analysisKey) requestKeyRef.current = "";
       analysis.cancel();
     };
-  }, [analysisDepth, currentFen, enginePhase]);
+  }, [analysisDepth, analysisKey, currentFen, enginePhase]);
 
   // Cancel full-game review on unmount or when game changes
   useEffect(() => {
@@ -251,14 +273,46 @@ export default function ReviewPage() {
       // Clean up the dedicated engine
       engine.terminate();
       reviewEngineRef.current = null;
+      if (reviewAbortRef.current === abortController) {
+        reviewAbortRef.current = null;
+      }
     } catch (err: unknown) {
-      if (err instanceof Error && err.message === "Analysis cancelled") {
-        // Expected when user navigates away or cancels
+      if (
+        abortController.signal.aborted ||
+        (err instanceof Error && err.message === "Analysis cancelled")
+      ) {
+        // Expected when the user cancels or navigates away.
         return;
       }
+      reviewAbortRef.current = null;
+      reviewEngineRef.current = null;
       dispatch({ type: "setError", payload: err instanceof Error ? err.message : "Full-game analysis failed" });
     }
   }, [parsedGame, dispatch]);
+
+  const cancelFullGameReview = useCallback(() => {
+    reviewAbortRef.current?.abort();
+    reviewAbortRef.current = null;
+    reviewEngineRef.current?.terminate();
+    reviewEngineRef.current = null;
+    dispatch({ type: "cancelAnalysis" });
+  }, [dispatch]);
+
+  const handlePvMoveClick = useCallback((selection: PvMoveSelection) => {
+    if (!parsedGame) return;
+    const gameMoveIndex = findGameContinuationIndex(
+      parsedGame.moves,
+      currentMoveIndex,
+      selection.uciMoves
+    );
+
+    if (gameMoveIndex !== null) {
+      dispatch({ type: "navigateToMove", payload: gameMoveIndex });
+      return;
+    }
+
+    setPreviewFen(selection.fen);
+  }, [currentMoveIndex, dispatch, parsedGame]);
 
   if (!parsedGame) {
     return (
@@ -348,9 +402,14 @@ export default function ReviewPage() {
     ? coachingScript[currentMoveIndex]?.grade ?? null
     : null;
   const lastMoveIndex = parsedGame.moves.length - 1;
+  const modeLabel = canCoach
+    ? "Coaching Walkthrough"
+    : analysisStatus === "running" || (showReviewResults && analysisStatus === "complete" && gameAccuracy)
+      ? "Game Review"
+      : "Live Analysis";
 
   return (
-    <div className="min-h-screen px-2 py-2 [--board-size:min(36rem,calc(100vw-3.75rem))] lg:h-[calc(100dvh-2.75rem)] lg:min-h-0 lg:overflow-hidden lg:px-4 lg:[--board-size:min(36rem,calc(100vw-29rem),calc(100dvh-4.5rem))]">
+    <div className="min-h-screen px-2 py-2 [--board-size:min(36rem,calc(100vw-3.75rem))] lg:h-[calc(100dvh-3rem)] lg:min-h-0 lg:overflow-hidden lg:px-4 lg:[--board-size:min(36rem,calc(100vw-29rem),calc(100dvh-5rem))]">
       <main className="mx-auto flex h-full w-full max-w-[1200px] flex-col">
         {error && (
           <div role="alert" className="mb-2 rounded-xl border border-[color-mix(in_srgb,var(--danger)_32%,transparent)] bg-[color-mix(in_srgb,var(--danger)_10%,transparent)] px-4 py-2 text-sm text-[var(--danger)]">
@@ -377,6 +436,12 @@ export default function ReviewPage() {
           </section>
 
           <aside aria-label="Position analysis console" className="flex min-h-[26rem] flex-col overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--surface)] shadow-[var(--shadow-card)] lg:h-full lg:min-h-0">
+            <div className="shrink-0 border-b border-[var(--border)] bg-[var(--control)] px-4 py-1.5">
+              <span className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[var(--ink-muted)]">
+                {modeLabel}
+              </span>
+            </div>
+
             {/* Coaching walkthrough dialogue */}
             {canCoach && (
               <CoachDialogue
@@ -448,7 +513,7 @@ export default function ReviewPage() {
             ) : (
               <>
                 {/* ============================================================= */}
-                {/* ANALYSIS VIEW — tabs with engine lines and moves               */}
+                {/* ANALYSIS VIEW — progressive engine lines above game moves  */}
                 {/* ============================================================= */}
 
                 {/* Full-game review: progress bar while running */}
@@ -456,9 +521,18 @@ export default function ReviewPage() {
                   <div className="border-b border-[var(--border)] px-4 py-3">
                     <div className="flex items-center justify-between">
                       <span className="text-xs font-semibold text-[var(--ink)]">Analyzing game…</span>
-                      <span className="font-mono text-[10px] font-bold text-[var(--ink-muted)]">
-                        {Math.round(analysisProgress * 100)}%
-                      </span>
+                      <div className="flex items-center gap-3">
+                        <span className="font-mono text-[10px] font-bold text-[var(--ink-muted)]">
+                          {Math.round(analysisProgress * 100)}%
+                        </span>
+                        <button
+                          type="button"
+                          onClick={cancelFullGameReview}
+                          className="rounded-lg border border-[var(--border-strong)] bg-[var(--surface-raised)] px-2.5 py-1 text-[11px] font-semibold text-[var(--ink)] transition-colors hover:border-[var(--danger)] hover:text-[var(--danger)]"
+                        >
+                          Cancel
+                        </button>
+                      </div>
                     </div>
                     <div className="mt-1.5 h-1.5 w-full overflow-hidden rounded-full bg-[var(--control)]">
                       <div
@@ -469,22 +543,41 @@ export default function ReviewPage() {
                   </div>
                 )}
 
-                {/* Full-game review: request button when idle */}
+                <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+                  {!canCoach && (
+                    <EngineLines
+                      fen={currentFen}
+                      lines={engineLines}
+                      status={engineStatus}
+                      depth={analysisDepth}
+                      reachedDepth={hasCurrentAnalysis ? positionAnalysis.depth : null}
+                      multiThreaded={isMultiThreaded}
+                      errorMessage={visibleError}
+                      onDepthChange={(depth) => dispatch({ type: "setDepth", payload: depth })}
+                      onPvMoveClick={handlePvMoveClick}
+                    />
+                  )}
+                  <MoveList />
+                </div>
+
+                {/* Full-game batch action sits below live position tools. */}
                 {analysisStatus === "idle" && (
-                  <div className="border-b border-[var(--border)] px-4 py-2">
+                  <div className="shrink-0 border-t border-[var(--border)] px-4 py-3">
+                    <p className="mb-2.5 text-[11px] leading-[1.4] text-[var(--ink-muted)]">
+                      Let Toby analyze your entire game to find key mistakes, blunders, and brilliant moves.
+                    </p>
                     <button
                       type="button"
                       onClick={startFullGameReview}
-                      className="w-full rounded-lg bg-[var(--accent)] px-3 py-2 text-xs font-semibold text-[#fffaf0] transition-colors hover:bg-[var(--accent-hover)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent)]"
+                      className="w-full relative overflow-hidden rounded-lg bg-[var(--accent)] px-3 py-2.5 text-xs font-semibold text-[#fffaf0] shadow-sm ring-1 ring-inset ring-[color-mix(in_srgb,white_20%,transparent)] transition-all hover:bg-[var(--accent-hover)] hover:shadow-md active:scale-[0.98] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent)]"
                     >
-                      Request Game Review
+                      Generate Full Game Report
                     </button>
                   </div>
                 )}
 
-                {/* Show "View Results" button when review is complete but user is in analysis view */}
                 {analysisStatus === "complete" && !showReviewResults && (
-                  <div className="border-b border-[var(--border)] px-4 py-2">
+                  <div className="shrink-0 border-t border-[var(--border)] px-4 py-2">
                     <button
                       type="button"
                       onClick={() => setShowReviewResults(true)}
@@ -494,51 +587,6 @@ export default function ReviewPage() {
                     </button>
                   </div>
                 )}
-
-                {/* Tab bar */}
-                <div className="flex shrink-0 border-b border-[var(--border)]" role="tablist" aria-label="Analysis console tabs">
-                  <button
-                    role="tab"
-                    aria-selected={activeTab === "engine"}
-                    aria-controls="panel-engine"
-                    id="tab-engine"
-                    type="button"
-                    onClick={() => setActiveTab("engine")}
-                    className={`flex-1 px-4 py-2 text-xs font-semibold transition-colors ${activeTab === "engine" ? "border-b-2 border-[var(--accent)] text-[var(--accent)]" : "text-[var(--ink-muted)] hover:text-[var(--ink)]"}`}
-                  >
-                    Engine
-                  </button>
-                  <button
-                    role="tab"
-                    aria-selected={activeTab === "moves"}
-                    aria-controls="panel-moves"
-                    id="tab-moves"
-                    type="button"
-                    onClick={() => setActiveTab("moves")}
-                    className={`flex-1 px-4 py-2 text-xs font-semibold transition-colors ${activeTab === "moves" ? "border-b-2 border-[var(--accent)] text-[var(--accent)]" : "text-[var(--ink-muted)] hover:text-[var(--ink)]"}`}
-                  >
-                    Moves
-                  </button>
-                </div>
-
-                {/* Tab panels */}
-                <div className="min-h-0 flex-1 overflow-y-auto">
-                  <div id="panel-engine" role="tabpanel" aria-labelledby="tab-engine" className={activeTab === "engine" ? "" : "hidden"}>
-                    <EngineLines
-                      fen={currentFen}
-                      lines={engineLines}
-                      status={engineStatus}
-                      depth={analysisDepth}
-                      multiThreaded={isMultiThreaded}
-                      errorMessage={visibleError}
-                      onDepthChange={(depth) => dispatch({ type: "setDepth", payload: depth })}
-                      onPvMoveClick={(fen) => setPreviewFen(fen)}
-                    />
-                  </div>
-                  <div id="panel-moves" role="tabpanel" aria-labelledby="tab-moves" className={activeTab === "moves" ? "" : "hidden"}>
-                    <MoveList />
-                  </div>
-                </div>
 
                 {/* Navigation always pinned at bottom */}
                 <NavigationControls />

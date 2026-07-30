@@ -7,6 +7,8 @@ export interface Profile {
   id: string;
   display_name: string | null;
   avatar_url: string | null;
+  chess_com_username: string | null;
+  lichess_username: string | null;
   created_at: string;
   last_login_at: string;
 }

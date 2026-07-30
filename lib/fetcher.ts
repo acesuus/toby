@@ -73,8 +73,14 @@ function normalizeChesscomGame(game: Record<string, unknown>): GameListItem {
 /**
  * Fetches recent games from the Chess.com API.
  */
-async function fetchChesscomGames(username: string): Promise<GameListItem[]> {
+async function fetchChesscomGames(
+  username: string,
+  signal?: AbortSignal
+): Promise<GameListItem[]> {
   const controller = new AbortController();
+  const abortFromCaller = () => controller.abort();
+  if (signal?.aborted) controller.abort();
+  else signal?.addEventListener("abort", abortFromCaller, { once: true });
   const timeout = setTimeout(() => controller.abort(), 15000);
 
   try {
@@ -131,6 +137,7 @@ async function fetchChesscomGames(username: string): Promise<GameListItem[]> {
   } catch (error: unknown) {
     if (error instanceof Error) {
       if (error.name === "AbortError") {
+        if (signal?.aborted) throw error;
         throw new Error("Chess.com request timed out. Please try again");
       }
       throw error;
@@ -138,6 +145,7 @@ async function fetchChesscomGames(username: string): Promise<GameListItem[]> {
     throw new Error("Network error while contacting Chess.com");
   } finally {
     clearTimeout(timeout);
+    signal?.removeEventListener("abort", abortFromCaller);
   }
 }
 
@@ -234,8 +242,14 @@ function parseNdjson(text: string): LichessGame[] {
 /**
  * Fetches recent games from the Lichess API (ndjson format with PGN).
  */
-async function fetchLichessGames(username: string): Promise<GameListItem[]> {
+async function fetchLichessGames(
+  username: string,
+  signal?: AbortSignal
+): Promise<GameListItem[]> {
   const controller = new AbortController();
+  const abortFromCaller = () => controller.abort();
+  if (signal?.aborted) controller.abort();
+  else signal?.addEventListener("abort", abortFromCaller, { once: true });
   const timeout = setTimeout(() => controller.abort(), 15000);
 
   try {
@@ -272,6 +286,7 @@ async function fetchLichessGames(username: string): Promise<GameListItem[]> {
   } catch (error: unknown) {
     if (error instanceof Error) {
       if (error.name === "AbortError") {
+        if (signal?.aborted) throw error;
         throw new Error("Lichess request timed out. Please try again");
       }
       throw error;
@@ -279,6 +294,7 @@ async function fetchLichessGames(username: string): Promise<GameListItem[]> {
     throw new Error("Network error while contacting Lichess");
   } finally {
     clearTimeout(timeout);
+    signal?.removeEventListener("abort", abortFromCaller);
   }
 }
 
@@ -294,7 +310,8 @@ async function fetchLichessGames(username: string): Promise<GameListItem[]> {
  */
 export async function fetchRecentGames(
   platform: Platform,
-  username: string
+  username: string,
+  signal?: AbortSignal
 ): Promise<GameListItem[]> {
   const validationError = validateUsername(platform, username);
   if (validationError) {
@@ -302,9 +319,9 @@ export async function fetchRecentGames(
   }
 
   if (platform === "chesscom") {
-    return fetchChesscomGames(username);
+    return fetchChesscomGames(username, signal);
   } else {
-    return fetchLichessGames(username);
+    return fetchLichessGames(username, signal);
   }
 }
 

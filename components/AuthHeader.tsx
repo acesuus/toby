@@ -47,12 +47,12 @@ export function AuthHeader() {
     );
   }
 
-  // Unauthenticated state: "Sign in" link
+  // Unauthenticated state: "Sign in" button
   if (!user) {
     return (
       <Link
         href="/login"
-        className="text-sm font-semibold text-[var(--accent)] hover:underline focus:outline-none focus:ring-2 focus:ring-[var(--accent)] focus:ring-offset-2 rounded px-2 py-1"
+        className="rounded-full bg-[var(--ink)] px-4 py-2 text-xs font-semibold text-[var(--bg)] shadow-sm transition-transform hover:scale-[1.02] active:scale-[0.98] focus:outline-none focus:ring-2 focus:ring-[var(--accent)] focus:ring-offset-2"
       >
         Sign in
       </Link>
@@ -72,39 +72,46 @@ export function AuthHeader() {
         aria-expanded={open}
         aria-haspopup="true"
         aria-label="Account menu"
-        className="flex items-center gap-2 rounded-lg px-2 py-1 transition-colors hover:bg-[var(--control)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)] focus:ring-offset-2"
+        className="flex items-center gap-2 rounded-full border border-[var(--border)] bg-[var(--surface)] pl-1.5 pr-3 py-1.5 transition-all hover:border-[var(--border-strong)] hover:shadow-sm focus:outline-none focus:ring-2 focus:ring-[var(--accent)]"
       >
         {user.avatarUrl ? (
           <img
             src={user.avatarUrl}
             alt=""
-            className="h-8 w-8 rounded-full object-cover"
+            className="h-7 w-7 rounded-full object-cover border border-[var(--border)]"
           />
         ) : (
           <span
-            className="flex h-8 w-8 items-center justify-center rounded-full bg-[var(--accent)] text-sm font-semibold text-white"
+            className="flex h-7 w-7 items-center justify-center rounded-full bg-[var(--accent)] text-xs font-bold text-[#fffaf0]"
             aria-hidden="true"
           >
             {initials}
           </span>
         )}
-        <span className="text-sm font-medium text-[var(--ink)] hidden sm:inline">
-          {user.displayName || user.email}
+        <span className="text-xs font-semibold text-[var(--ink)] hidden sm:inline">
+          {user.displayName || user.email.split("@")[0]}
         </span>
+        <svg className="w-3.5 h-3.5 text-[var(--ink-muted)]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 9l-7 7-7-7" />
+        </svg>
       </button>
 
       {open && (
         <div
           role="menu"
           aria-label="Account actions"
-          className="absolute right-0 top-full mt-2 w-48 rounded-lg bg-[var(--surface-raised)] py-1 shadow-[var(--shadow-card)] border border-[var(--border)] z-50"
+          className="absolute right-0 top-full mt-2 w-56 rounded-2xl bg-[var(--surface-raised)]/95 py-2 border border-[var(--border-strong)] shadow-[var(--shadow-card)] backdrop-blur-md z-50 overflow-hidden"
         >
+          <div className="px-4 py-2 border-b border-[var(--border)] mb-1">
+             <p className="text-[10px] font-bold text-[var(--ink-muted)] uppercase tracking-widest">Signed in as</p>
+             <p className="text-sm font-bold text-[var(--ink)] truncate mt-0.5">{user.email}</p>
+          </div>
           <Link
             href="/library"
             role="menuitem"
             tabIndex={0}
             onClick={() => setOpen(false)}
-            className="block w-full px-4 py-2 text-left text-sm text-[var(--ink)] hover:bg-[var(--control)] focus:bg-[var(--control)] focus:outline-none"
+            className="block w-full px-4 py-2.5 text-left text-sm font-medium text-[var(--ink-muted)] hover:bg-[var(--control)] hover:text-[var(--ink)] transition-colors focus:outline-none"
           >
             Library
           </Link>
@@ -113,7 +120,7 @@ export function AuthHeader() {
             role="menuitem"
             tabIndex={0}
             onClick={() => setOpen(false)}
-            className="block w-full px-4 py-2 text-left text-sm text-[var(--ink)] hover:bg-[var(--control)] focus:bg-[var(--control)] focus:outline-none"
+            className="block w-full px-4 py-2.5 text-left text-sm font-medium text-[var(--ink-muted)] hover:bg-[var(--control)] hover:text-[var(--ink)] transition-colors focus:outline-none"
           >
             Account
           </Link>
@@ -126,7 +133,7 @@ export function AuthHeader() {
               setOpen(false);
               signOut();
             }}
-            className="block w-full px-4 py-2 text-left text-sm text-[var(--ink)] hover:bg-[var(--control)] focus:bg-[var(--control)] focus:outline-none"
+            className="block w-full px-4 py-2.5 text-left text-sm font-medium text-[var(--danger)] hover:bg-[var(--control)] transition-colors focus:outline-none"
           >
             Sign Out
           </button>

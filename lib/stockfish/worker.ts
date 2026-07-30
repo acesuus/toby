@@ -298,7 +298,7 @@ async function handleEvaluate(fen: string, depth: number): Promise<void> {
     const bestMoveLine = lines.find((l) => l.startsWith("bestmove"));
     const bestMove = bestMoveLine ? parseBestMove(bestMoveLine) : null;
 
-    if (!lastInfo || !bestMove) {
+    if (!bestMove) {
       const response: WorkerResponse = {
         type: "error",
         message: `Failed to parse engine output for position: ${fen}`,
@@ -309,12 +309,12 @@ async function handleEvaluate(fen: string, depth: number): Promise<void> {
 
     const result: EngineEvaluation = {
       fen,
-      depth: lastInfo.depth,
-      score: lastInfo.score,
+      depth: lastInfo?.depth || 0,
+      score: lastInfo?.score || { type: "mate", value: 0 },
       bestMove,
-      pv: lastInfo.pv,
-      nodes: lastInfo.nodes,
-      time: lastInfo.time,
+      pv: lastInfo?.pv || [],
+      nodes: lastInfo?.nodes || 0,
+      time: lastInfo?.time || 0,
     };
 
     const response: WorkerResponse = { type: "evaluation", result };
