@@ -56,7 +56,7 @@ export default function Board({ previewFen }: { previewFen?: string | null }) {
       <Chessboard options={{
         position: currentFen,
         allowDragging: false,
-        allowDrawingArrows: false,
+        allowDrawingArrows: true,
         squareStyles,
         showNotation: true,
         animationDurationInMs: reduceMotion ? 0 : 180,

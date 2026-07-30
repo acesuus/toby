@@ -22,15 +22,15 @@ export function MiniBoardPreview({ pgn, className }: MiniBoardPreviewProps) {
 
   return (
     <div className={className || "aspect-square w-16 h-16 sm:w-20 sm:h-20 overflow-hidden rounded shadow-sm border border-[#3c3b39]"}>
-      <Chessboard
-        position={fen}
-        allowDragging={false}
-        allowDrawingArrows={false}
-        showNotation={false}
-        animationDurationInMs={0}
-        lightSquareStyle={{ backgroundColor: "#F2E6D3" }}
-        darkSquareStyle={{ backgroundColor: "#6B4A38" }}
-      />
+      <Chessboard options={{
+        position: fen,
+        allowDragging: false,
+        allowDrawingArrows: false,
+        showNotation: false,
+        animationDurationInMs: 0,
+        lightSquareStyle: { backgroundColor: "#F2E6D3" },
+        darkSquareStyle: { backgroundColor: "#6B4A38" }
+      }} />
     </div>
   );
 }
