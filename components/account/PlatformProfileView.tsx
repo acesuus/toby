@@ -56,7 +56,7 @@ async function fetchChessComProfile(username: string): Promise<PlatformProfile> 
   }
   
   const recentGames = await fetchRecentGames("chesscom", username).catch(() => []);
-  return { username, platform: "chesscom", ratings, recentGames: recentGames.slice(0, 5) };
+  return { username, platform: "chesscom", ratings, recentGames };
 }
 
 async function fetchLichessProfile(username: string): Promise<PlatformProfile> {
@@ -95,7 +95,7 @@ async function fetchLichessProfile(username: string): Promise<PlatformProfile> {
   }
 
   const recentGames = await fetchRecentGames("lichess", username).catch(() => []);
-  return { username, platform: "lichess", ratings, recentGames: recentGames.slice(0, 5) };
+  return { username, platform: "lichess", ratings, recentGames };
 }
 
 export function PlatformProfileView({ platform, username }: PlatformProfileViewProps) {

@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useGameReview } from "@/lib/game-review-context";
 import { parsePGN } from "@/lib/pgn-parser";
+import { getGameType } from "@/lib/game-utils";
 
 export function GameSelector() {
   const { state, dispatch } = useGameReview();
@@ -42,6 +43,13 @@ export function GameSelector() {
                 <span className="shrink-0 rounded-md bg-[var(--surface-raised)] px-2 py-0.5 font-mono text-[10px] font-semibold text-[var(--ink)]">{game.result}</span>
               </div>
               <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 font-mono text-[10px] text-[var(--ink-muted)]">
+                {(() => {
+                  const type = getGameType(game.timeControl, game.timeClass);
+                  if (type) {
+                    return <span title={type.label} aria-label={type.label} className="shrink-0">{type.icon}</span>;
+                  }
+                  return null;
+                })()}
                 {game.timeControl && <span>{game.timeControl}</span>}
                 {game.timeControl && game.date && <span aria-hidden="true">·</span>}
                 {game.date && <span>{game.date}</span>}

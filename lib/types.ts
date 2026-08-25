@@ -18,6 +18,7 @@ export interface GameListItem {
   timeControl: string;
   date: string;
   pgn: string;
+  timeClass?: string;
 }
 
 // --- PGN Parsing Types ---

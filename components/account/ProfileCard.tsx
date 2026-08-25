@@ -1,23 +1,10 @@
+"use client";
+
+import { useState } from "react";
 import type { PlatformProfile } from "@/lib/account-types";
 import { PlatformIcon } from "./PlatformIcon";
 import { User, Swords, Zap, Timer, Calendar } from "lucide-react";
-
-function BulletIcon({ className }: { className?: string }) {
-  return (
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" stroke="none" className={className}>
-      <g transform="rotate(-45 12 12)">
-        {/* Speed lines */}
-        <path d="M6 7H2a1 1 0 0 0 0 2h4a1 1 0 0 0 0-2zM4 15H1a1 1 0 0 0 0 2h3a1 1 0 0 0 0-2zM7 11H1a1 1 0 0 0 0 2h6a1 1 0 0 0 0-2z" opacity="0.35" />
-        {/* Base */}
-        <path d="M6 8a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h1V8z" />
-        {/* Groove */}
-        <path d="M7 8h1v8H7z" opacity="0.6"/>
-        {/* Projectile */}
-        <path d="M8 8h6c3 0 6.5 2 8 4-1.5 2-5 4-8 4H8z" />
-      </g>
-    </svg>
-  );
-}
+import { getGameType, BulletIcon } from "@/lib/game-utils";
 
 import { MiniBoardPreview } from "./MiniBoardPreview";
 import Link from "next/link";
@@ -33,7 +20,7 @@ const platformLabel: Record<string, string> = {
 
 function getTimeControlStyle(timeControl: string) {
   const tc = timeControl.toLowerCase();
-  if (tc.includes("bullet")) return { icon: <BulletIcon className="w-5 h-5 text-yellow-500" />, bg: "bg-yellow-500/10 border border-yellow-500/30" };
+  if (tc.includes("bullet")) return { icon: <BulletIcon className="w-5 h-5 text-red-500" />, bg: "bg-red-500/10 border border-red-500/30" };
   if (tc.includes("blitz")) return { icon: <Zap className="w-5 h-5 text-yellow-400" />, bg: "bg-yellow-400/10 border border-yellow-400/30" };
   if (tc.includes("rapid")) return { icon: <Timer className="w-5 h-5 text-green-500" />, bg: "bg-green-500/10 border border-green-500/30" };
   return { icon: <Swords className="w-5 h-5 text-gray-400" />, bg: "bg-gray-400/10 border border-gray-400/30" };
@@ -132,13 +119,47 @@ export function ProfileCard({ profile }: ProfileCardProps) {
 
       {/* Recent Games Block */}
       {recentGames && recentGames.length > 0 && (
+        <RecentGamesFilterList games={recentGames} username={username} />
+      )}
+    </div>
+  );
+}
+
+function RecentGamesFilterList({ games, username }: { games: any[], username: string }) {
+  const [filter, setFilter] = useState("All");
+  
+  const filteredGames = filter === "All" 
+    ? games.slice(0, 5) 
+    : games.filter((g) => getGameType(g.timeControl, g.timeClass)?.label === filter).slice(0, 5);
+
+  return (
         <div className="border-t border-[#3c3b39] bg-[#262522]">
           <div className="px-4 py-3 flex items-center justify-between border-b border-[#3c3b39]">
              <h4 className="text-sm font-semibold text-[#c3c3c2]">Recent Games</h4>
+             <div className="flex items-center gap-1.5 rounded-lg bg-[#1f1e1b] p-1 border border-[#3c3b39]">
+               {[
+                 { id: "All", label: "All", icon: null },
+                 { id: "Bullet", label: "Bullet", icon: <BulletIcon className="w-3.5 h-3.5 text-red-500" /> },
+                 { id: "Blitz", label: "Blitz", icon: <Zap className="w-3.5 h-3.5 text-yellow-400" /> },
+                 { id: "Rapid", label: "Rapid", icon: <Timer className="w-3.5 h-3.5 text-green-500" /> },
+               ].map((cat) => (
+                 <button
+                   key={cat.id}
+                   onClick={() => setFilter(cat.id)}
+                   className={`flex items-center gap-1.5 px-2 py-1 text-xs font-medium rounded transition-colors ${filter === cat.id ? "bg-[#3c3b39] text-[#f1f1f1]" : "text-[#888] hover:text-[#c3c3c2]"}`}
+                 >
+                   {cat.icon}
+                   {cat.label}
+                 </button>
+               ))}
+             </div>
           </div>
           
           <div className="flex flex-col">
-            {recentGames.map((game, idx) => {
+            {filteredGames.length === 0 ? (
+               <div className="p-4 text-center text-sm text-[#888]">No {filter !== "All" ? filter.toLowerCase() : "recent"} games found.</div>
+            ) : (
+            filteredGames.map((game, idx) => {
               const isWin =
                 (game.white.toLowerCase() === username.toLowerCase() && game.result === "1-0") ||
                 (game.black.toLowerCase() === username.toLowerCase() && game.result === "0-1");
@@ -172,18 +193,22 @@ export function ProfileCard({ profile }: ProfileCardProps) {
                     </div>
                     
                     <div className="mt-1 flex items-center gap-2 text-xs text-[#888]">
+                      {(() => {
+                        const type = getGameType(game.timeControl, game.timeClass);
+                        if (type) return <span title={type.label} aria-label={type.label}>{type.icon}</span>;
+                        return null;
+                      })()}
+                      <span>{game.timeControl}</span>
+                      <span className="mx-1">•</span>
                       <Calendar className="w-3.5 h-3.5" />
                       <span>{game.date}</span>
-                      <span className="mx-1">•</span>
-                      <span>{game.timeControl}</span>
                     </div>
                   </div>
                 </Link>
               );
-            })}
+            })
+            )}
           </div>
         </div>
-      )}
-    </div>
   );
 }

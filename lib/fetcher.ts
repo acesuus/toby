@@ -67,7 +67,9 @@ function normalizeChesscomGame(game: Record<string, unknown>): GameListItem {
   const idMatch = url.match(/\/(\d+)$/);
   const id = idMatch ? idMatch[1] : (game.uuid as string) ?? crypto.randomUUID();
 
-  return { id, white: whiteUsername, black: blackUsername, result, timeControl, date, pgn };
+  const timeClass = (game.time_class as string) ?? undefined;
+
+  return { id, white: whiteUsername, black: blackUsername, result, timeControl, date, pgn, timeClass };
 }
 
 /**
@@ -215,6 +217,7 @@ function normalizeLichessGame(game: LichessGame): GameListItem {
     : "????.??.??";
 
   const pgn = game.pgn ?? "";
+  const timeClass = game.speed;
 
   return {
     id: game.id,
@@ -224,6 +227,7 @@ function normalizeLichessGame(game: LichessGame): GameListItem {
     timeControl,
     date,
     pgn,
+    timeClass,
   };
 }
 

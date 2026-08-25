@@ -1,9 +1,9 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import { Inter, JetBrains_Mono, Lora } from "next/font/google";
 import "./globals.css";
 import { Providers } from "./providers";
-import { AuthHeader } from "@/components/AuthHeader";
+
+import { AppShell } from "@/components/AppShell";
 
 const inter = Inter({
   variable: "--font-inter",
@@ -33,21 +33,11 @@ import { Toaster } from "sonner";
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="en" className={`${inter.variable} ${lora.variable} ${jetBrainsMono.variable} h-full antialiased`}>
-      <body className="flex min-h-full flex-col">
+      <body className="flex min-h-full bg-[var(--bg)]">
         <Providers>
-          <header className="sticky top-0 z-40 flex h-16 shrink-0 items-center justify-between border-b border-[var(--border)] bg-[var(--bg)]/80 px-4 backdrop-blur-md sm:px-6">
-            <nav className="flex items-center gap-8">
-              <Link href="/" className="group flex items-center gap-2.5 focus:outline-none">
-                <span className="grid size-8 place-items-center rounded-lg bg-[var(--accent)] text-[#fffaf0] shadow-sm font-serif font-bold leading-none transition-transform group-hover:scale-105">T</span>
-                <span className="font-serif text-xl font-bold tracking-tight text-[var(--ink)] transition-colors group-hover:text-[var(--accent)]">Toby</span>
-              </Link>
-              <div className="hidden sm:flex items-center gap-6 mt-0.5">
-                <Link href="/library" className="rounded-full px-3 py-1.5 text-xs font-bold uppercase tracking-widest text-[var(--ink-muted)] transition-colors hover:bg-[var(--control)] hover:text-[var(--ink)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]">Library</Link>
-              </div>
-            </nav>
-            <AuthHeader />
-          </header>
-          {children}
+          <AppShell>
+            {children}
+          </AppShell>
           <Toaster
             theme="system"
             toastOptions={{

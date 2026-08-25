@@ -6,6 +6,7 @@ import { useAuth } from "@/lib/auth-context";
 import type { GameWithAnalysis, PaginatedGamesResponse } from "@/lib/supabase/types";
 import { Search, Trash2, Calendar, Target, Swords } from "lucide-react";
 import { MiniBoardPreview } from "@/components/account/MiniBoardPreview";
+import { getGameType } from "@/lib/game-utils";
 
 type SortOption = "date_saved" | "date_played" | "accuracy";
 
@@ -144,9 +145,9 @@ export default function LibraryPage() {
       <main className="min-h-screen bg-[var(--bg)] px-4 py-12">
         <div className="mx-auto max-w-5xl">
           <div className="h-8 w-48 animate-pulse rounded-lg bg-[var(--control)]" />
-          <div className="mt-8 grid gap-6 sm:grid-cols-2">
+          <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {Array.from({ length: 6 }).map((_, i) => (
-              <div key={i} className="h-48 animate-pulse rounded-xl bg-[var(--surface-raised)] shadow-[var(--shadow-card)]" />
+              <div key={i} className="h-32 animate-pulse rounded-xl bg-[var(--surface-raised)] shadow-sm border border-[var(--border)]" />
             ))}
           </div>
         </div>
@@ -213,9 +214,9 @@ export default function LibraryPage() {
         )}
 
         {loading ? (
-          <div className="grid gap-6 sm:grid-cols-2">
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {Array.from({ length: 6 }).map((_, i) => (
-              <div key={i} className="h-48 animate-pulse rounded-xl bg-[var(--surface-raised)] shadow-[var(--shadow-card)]" />
+              <div key={i} className="h-32 animate-pulse rounded-xl bg-[var(--surface-raised)] shadow-sm border border-[var(--border)]" />
             ))}
           </div>
         ) : games.length === 0 ? (
@@ -237,7 +238,7 @@ export default function LibraryPage() {
            </div>
         ) : (
           <>
-            <div className="grid gap-6 sm:grid-cols-2">
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
               {filteredAndSortedGames.map((game) => {
                 const isWin = game.headers.result === "1-0" || game.headers.result === "0-1";
                 const isDraw = game.headers.result === "1/2-1/2" || game.headers.result === "½-½";
@@ -246,91 +247,86 @@ export default function LibraryPage() {
                   <Link
                     key={game.id}
                     href={`/review?gameId=${game.id}`}
-                    className="group relative flex flex-col sm:flex-row overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--surface-raised)] shadow-[var(--shadow-card)] transition-all hover:shadow-lg hover:border-[var(--accent)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
+                    className="group relative flex flex-col overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--surface-raised)] shadow-sm transition-all hover:shadow-md hover:border-[var(--accent)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
                   >
-                    {/* Left: Mini Board */}
-                    <div className="bg-[var(--surface)] p-4 sm:border-r border-[var(--border)] flex items-center justify-center shrink-0">
-                      <MiniBoardPreview pgn={game.pgn} className="aspect-square w-24 h-24 sm:w-28 sm:h-28 overflow-hidden rounded shadow-sm border border-[#3c3b39] transition-transform group-hover:scale-[1.02]" />
-                    </div>
-
-                    {/* Right: Info */}
-                    <div className="p-5 flex flex-col flex-1 min-w-0">
-                      {/* Header: Result & Date */}
-                      <div className="flex items-center justify-between mb-3">
-                        <span className={`text-sm font-bold ${isWin ? 'text-[var(--accent)]' : isDraw ? 'text-[var(--ink-muted)]' : 'text-[var(--danger)]'}`}>
-                          {game.headers.result}
-                        </span>
-                        <div className="flex items-center gap-1.5 text-xs text-[var(--ink-muted)]">
-                          <Calendar className="w-3.5 h-3.5" />
-                          {formatDate(game.headers.date || game.created_at)}
-                        </div>
-                      </div>
+                    <div className="flex items-start gap-3 p-3">
+                      {/* Left: Mini Board */}
+                      <MiniBoardPreview pgn={game.pgn} className="w-20 h-20 shrink-0 rounded shadow-sm border border-[#3c3b39] transition-transform group-hover:scale-[1.02]" />
                       
-                      {/* Players */}
-                      <div className="space-y-1.5 mb-4">
-                        <div className="flex items-center justify-between gap-2">
-                          <div className="flex items-center gap-2 min-w-0">
-                            <span className="size-3 shrink-0 rounded-sm border border-[#3c3b39] bg-white shadow-sm" aria-hidden="true" />
-                            <span className="truncate text-sm font-semibold text-[var(--ink)]">{game.headers.white}</span>
-                          </div>
-                          {game.game_analyses && (
-                            <span className="shrink-0 text-xs font-medium text-[var(--ink-muted)] px-1.5 py-0.5 rounded bg-[var(--surface)] border border-[var(--border)]">
-                              <Target className="inline w-3 h-3 mr-1"/>
-                              {game.game_analyses.white_accuracy.toFixed(1)}%
-                            </span>
-                          )}
-                        </div>
-                        <div className="flex items-center justify-between gap-2">
-                          <div className="flex items-center gap-2 min-w-0">
-                            <span className="size-3 shrink-0 rounded-sm border border-[#3c3b39] bg-[#2b2b2b] shadow-sm" aria-hidden="true" />
-                            <span className="truncate text-sm font-semibold text-[var(--ink)]">{game.headers.black}</span>
-                          </div>
-                          {game.game_analyses && (
-                            <span className="shrink-0 text-xs font-medium text-[var(--ink-muted)] px-1.5 py-0.5 rounded bg-[var(--surface)] border border-[var(--border)]">
-                              <Target className="inline w-3 h-3 mr-1"/>
-                              {game.game_analyses.black_accuracy.toFixed(1)}%
-                            </span>
-                          )}
-                        </div>
-                      </div>
-
-                      {/* Footer: Opening & Actions */}
-                      <div className="mt-auto flex items-center justify-between pt-3 border-t border-[var(--border)]">
-                        <div className="flex items-center gap-1.5 text-xs text-[var(--ink-muted)] min-w-0">
-                          <Swords className="w-3.5 h-3.5 shrink-0" />
-                          <span className="truncate">{game.headers.opening || "Unknown Opening"}</span>
+                      {/* Right: Game Details */}
+                      <div className="flex flex-col min-w-0 flex-1">
+                        <div className="flex items-center justify-between mb-2">
+                          <span className={`text-xs font-bold ${isWin ? 'text-[var(--accent)]' : isDraw ? 'text-[var(--ink-muted)]' : 'text-[#ca3431]'}`}>
+                            {game.headers.result}
+                          </span>
+                          <span className="text-[10px] text-[var(--ink-muted)]">{formatDate(game.headers.date || game.created_at)}</span>
                         </div>
                         
-                        <div className="shrink-0 relative z-10 ml-2">
-                          {confirmDeleteId === game.id ? (
-                            <div className="flex items-center gap-1.5">
-                              <button
-                                type="button"
-                                onClick={(e) => handleDelete(game.id, e)}
-                                disabled={deletingId === game.id}
-                                className="rounded bg-[var(--danger)] px-2 py-1 text-xs font-semibold text-white transition-colors hover:opacity-90 disabled:opacity-50"
-                              >
-                                {deletingId === game.id ? "..." : "Confirm"}
-                              </button>
-                              <button
-                                type="button"
-                                onClick={(e) => { e.preventDefault(); setConfirmDeleteId(null); }}
-                                className="rounded border border-[var(--border)] bg-[var(--surface)] px-2 py-1 text-xs font-semibold text-[var(--ink-muted)] hover:bg-[var(--surface-raised)]"
-                              >
-                                Cancel
-                              </button>
-                            </div>
-                          ) : (
+                        <div className="flex flex-col gap-1.5">
+                          <div className="flex items-center gap-1.5 min-w-0">
+                            <span className="size-2.5 shrink-0 rounded-sm border border-[#3c3b39] bg-white shadow-sm" aria-hidden="true" />
+                            <span className="truncate text-xs font-semibold text-[var(--ink)]">{game.headers.white}</span>
+                            {game.game_analyses && (
+                              <span className="ml-auto text-[10px] font-medium text-[var(--ink-muted)]">
+                                {game.game_analyses.white_accuracy.toFixed(1)}%
+                              </span>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-1.5 min-w-0">
+                            <span className="size-2.5 shrink-0 rounded-sm border border-[#3c3b39] bg-[#2b2b2b] shadow-sm" aria-hidden="true" />
+                            <span className="truncate text-xs font-semibold text-[var(--ink)]">{game.headers.black}</span>
+                            {game.game_analyses && (
+                              <span className="ml-auto text-[10px] font-medium text-[var(--ink-muted)]">
+                                {game.game_analyses.black_accuracy.toFixed(1)}%
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Footer: Opening & Actions */}
+                    <div className="bg-[var(--surface)] px-3 py-2.5 border-t border-[var(--border)] flex items-center justify-between mt-auto">
+                      <div className="flex items-center gap-1.5 text-xs text-[var(--ink-muted)] min-w-0">
+                        {(() => {
+                          const type = getGameType(game.headers.timeControl);
+                          if (type) return <span title={type.label} aria-label={type.label} className="shrink-0">{type.icon}</span>;
+                          return null;
+                        })()}
+                        <span className="shrink-0">{game.headers.timeControl}</span>
+                        <span className="mx-0.5 opacity-50 shrink-0">•</span>
+                        <span className="truncate" title={game.headers.opening}>{game.headers.opening || "Unknown Opening"}</span>
+                      </div>
+                      
+                      <div className="shrink-0 relative z-10 ml-2">
+                        {confirmDeleteId === game.id ? (
+                          <div className="flex items-center gap-1 bg-[var(--surface)]">
                             <button
                               type="button"
-                              onClick={(e) => { e.preventDefault(); setConfirmDeleteId(game.id); }}
-                              className="rounded p-1.5 text-[var(--ink-muted)] transition-colors hover:bg-[var(--danger)] hover:text-white"
-                              aria-label="Delete game"
+                              onClick={(e) => handleDelete(game.id, e)}
+                              disabled={deletingId === game.id}
+                              className="rounded bg-[#ca3431] px-2 py-1 text-[10px] font-semibold text-white transition-colors hover:opacity-90 disabled:opacity-50"
                             >
-                              <Trash2 className="w-4 h-4" />
+                              {deletingId === game.id ? "..." : "Del"}
                             </button>
-                          )}
-                        </div>
+                            <button
+                              type="button"
+                              onClick={(e) => { e.preventDefault(); setConfirmDeleteId(null); }}
+                              className="rounded border border-[var(--border)] bg-[var(--surface-raised)] px-2 py-1 text-[10px] font-semibold text-[var(--ink)] hover:bg-[var(--surface)]"
+                            >
+                              Cancel
+                            </button>
+                          </div>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={(e) => { e.preventDefault(); setConfirmDeleteId(game.id); }}
+                            className="rounded p-1 text-[var(--ink-muted)] transition-colors hover:text-[#ca3431] sm:opacity-0 sm:group-hover:opacity-100 focus-visible:opacity-100"
+                            aria-label="Delete game"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        )}
                       </div>
                     </div>
                   </Link>
