@@ -32,8 +32,8 @@ import { Toaster } from "sonner";
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="en" className={`${inter.variable} ${lora.variable} ${jetBrainsMono.variable} h-full antialiased`}>
-      <body className="flex min-h-full bg-[var(--bg)]">
+    <html lang="en" className={`${inter.variable} ${lora.variable} ${jetBrainsMono.variable} h-full antialiased`} suppressHydrationWarning>
+      <body className="flex min-h-full bg-[var(--bg)]" suppressHydrationWarning>
         <Providers>
           <AppShell>
             {children}

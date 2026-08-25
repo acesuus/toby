@@ -67,8 +67,8 @@ export function Sidebar() {
                 isCollapsed ? "justify-center px-0" : "px-4"
               } ${
                 isActive 
-                  ? `bg-[#1f1d1b] border-l-4 border-[#81b64c] text-white ${isCollapsed ? "" : "pl-[12px]"}` 
-                  : `border-l-4 border-transparent hover:bg-[#363431] hover:text-white`
+                  ? `bg-[#1f1d1b] text-white` 
+                  : `hover:bg-[#363431] hover:text-white`
               }`}
             >
               <item.icon className="size-[22px] shrink-0" strokeWidth={2.5} />
